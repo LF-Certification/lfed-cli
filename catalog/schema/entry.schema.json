@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "name": {
+      "description": "Plugin name. MUST equal the file stem of plugins/<name>.yaml and the last path segment of ref.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "maxLength": 64
+    },
+    "summary": {
+      "description": "One-line summary shown by `lfed plugin list`.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80
+    },
+    "homepage": {
+      "description": "URL of the plugin source or documentation.",
+      "type": "string",
+      "format": "uri",
+      "pattern": "^https://"
+    },
+    "owner": {
+      "description": "GitHub org/team or user login that owns the plugin.",
+      "type": "string",
+      "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:/[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)?$"
+    },
+    "ref": {
+      "description": "OCI repository without tag or digest. No ':' or '@' is allowed.",
+      "type": "string",
+      "pattern": "^[a-z0-9]+(?:[.-][a-z0-9]+)*(?:/[a-z0-9]+(?:[._-][a-z0-9]+)*)+$"
+    },
+    "signer": {
+      "description": "Sigstore keyless identity that signs every release of the plugin.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "issuer",
+        "identity"
+      ],
+      "properties": {
+        "issuer": {
+          "description": "OIDC issuer URL in the signing certificate.",
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "identity": {
+          "description": "Exact certificate SAN. MUST contain {version}. MAY contain {name}. Not a regexp.",
+          "type": "string",
+          "pattern": "^https://.*\\{version\\}.*$"
+        }
+      }
+    }
+  },
+  "title": "lfed plugin catalog entry",
+  "description": "One plugin entry. Source files plugins/<name>.yaml use this schema.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "summary",
+    "homepage",
+    "owner",
+    "ref",
+    "signer"
+  ]
+}
