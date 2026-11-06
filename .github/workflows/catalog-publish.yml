@@ -16,6 +16,9 @@ on:
     paths:
       - catalog/**
       - .github/workflows/catalog-publish.yml
+  # Republish the catalog from the current main without a content change,
+  # for example after a history rewrite or a signing incident.
+  workflow_dispatch:
 
 permissions: {}
 
