@@ -42,10 +42,10 @@ func NewCmd(f *cmdutil.Factory) *cobra.Command {
 			$ lfed auth login
 
 			# Install a plugin from the plugin catalog
-			$ lfed plugin install placement
+			$ lfed plugin install monkeysay
 
 			# Run a plugin command
-			$ lfed placement --help
+			$ lfed monkeysay "hello"
 		`),
 		SilenceUsage:               true,
 		SilenceErrors:              true,

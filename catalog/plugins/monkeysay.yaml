@@ -1,0 +1,8 @@
+name: monkeysay
+summary: "Print a message in a speech balloon over an ASCII monkey."
+homepage: https://github.com/LF-Certification/lfed-cli-plugin-monkeysay
+owner: LF-Certification/platform-engineering
+ref: ghcr.io/lf-certification/lfed-cli-plugins/monkeysay
+signer:
+  issuer: https://token.actions.githubusercontent.com
+  identity: "https://github.com/LF-Certification/lfed-cli-plugin-monkeysay/.github/workflows/release.yml@refs/tags/v{version}"

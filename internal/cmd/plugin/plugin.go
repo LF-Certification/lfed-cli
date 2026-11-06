@@ -57,10 +57,10 @@ func newInstallCmd(f *cmdutil.Factory) *cobra.Command {
 		`),
 		Example: cmdutil.Examples(`
 			# Install the newest version that supports this lfed
-			$ lfed plugin install placement
+			$ lfed plugin install monkeysay
 
 			# Pin a version
-			$ lfed plugin install placement@1.2.0
+			$ lfed plugin install monkeysay@1.2.0
 
 			# Install from a plugin catalog that "lfed plugin catalog add acme ..." registered
 			$ lfed plugin install acme/reports

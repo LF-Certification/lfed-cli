@@ -1,8 +1,0 @@
-name: cluster
-summary: "Operate P3 clusters: environments, cluster paths, and tooling."
-homepage: https://github.com/LF-Certification/p3-platform
-owner: LF-Certification/platform-engineering
-ref: ghcr.io/lf-certification/lfed-cli-plugins/cluster
-signer:
-  issuer: https://token.actions.githubusercontent.com
-  identity: "https://github.com/LF-Certification/p3-platform/.github/workflows/lfed-cli-plugins-release.yml@refs/tags/lfed-cli-cluster/v{version}"
