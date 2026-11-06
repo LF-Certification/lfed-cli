@@ -1,0 +1,62 @@
+name: PR checks
+
+on:
+  pull_request:
+
+permissions: {}
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@22b0f5500b14df4ea357ce673fbd4ced940ed6a1 # v0.13.0
+        with:
+          enable-cache: "true"
+          devbox-version: "0.18.4"
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+            ~/Library/Caches/go-build
+          key: lfed-go-${{ runner.os }}-${{ hashFiles('go.sum', 'sdk/go.sum') }}
+          restore-keys: lfed-go-${{ runner.os }}-
+
+      - name: Lint
+        if: runner.os == 'Linux'
+        run: devbox run -- make lint
+
+      - name: Tidy check
+        run: devbox run -- make tidy-check
+
+      - name: Test
+        run: devbox run -- make test
+
+      - name: Snapshot release
+        if: runner.os == 'Linux'
+        run: devbox run -- make release-snapshot
+
+      # Installs every catalog entry with the host built from this commit.
+      # Needs network access to ghcr.io and the Sigstore TUF root. The
+      # plugin packages MUST be public or readable by this repository's
+      # GITHUB_TOKEN; end users install them without any token.
+      - name: Verify the plugin catalog
+        if: runner.os == 'Linux'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: devbox run -- make build catalog-verify

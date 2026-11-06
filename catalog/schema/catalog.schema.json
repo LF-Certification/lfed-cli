@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "plugins": {
+      "description": "Entries sorted by name. Names are unique.",
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "entry.schema.json"
+      }
+    }
+  },
+  "title": "lfed plugin catalog",
+  "description": "The built catalog.json that the lfed host fetches.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "plugins"
+  ]
+}

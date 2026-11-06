@@ -1,0 +1,8 @@
+name: labpro
+summary: "Manage lab provisioning warm pools and stages."
+homepage: https://github.com/LF-Certification/p3-platform
+owner: LF-Certification/platform-engineering
+ref: ghcr.io/lf-certification/lfed-cli-plugins/labpro
+signer:
+  issuer: https://token.actions.githubusercontent.com
+  identity: "https://github.com/LF-Certification/p3-platform/.github/workflows/lfed-cli-plugins-release.yml@refs/tags/lfed-cli-labpro/v{version}"

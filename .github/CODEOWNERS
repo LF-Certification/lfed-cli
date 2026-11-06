@@ -1,0 +1,18 @@
+# Infrastructure, pipeline, and trust files need platform-engineering review.
+# The release workflow signs binaries; install.sh and the catalog signer
+# constants in internal/pluginmgr are what users trust. catalog/schema and
+# the build script decide what a catalog entry can claim.
+/.github/                       @LF-Certification/platform-engineering
+/.goreleaser.yaml               @LF-Certification/platform-engineering
+/install.sh                     @LF-Certification/platform-engineering
+/scripts/                       @LF-Certification/platform-engineering
+/internal/pluginmgr/verify.go   @LF-Certification/platform-engineering
+/internal/pluginmgr/catalog.go  @LF-Certification/platform-engineering
+/catalog/schema/                @LF-Certification/platform-engineering
+/catalog/build-catalog.sh       @LF-Certification/platform-engineering
+/devbox.json                    @LF-Certification/platform-engineering
+/devbox.lock                    @LF-Certification/platform-engineering
+/cliff.toml                     @LF-Certification/platform-engineering
+
+# Catalog entries: the plugin owner named in the entry maintains it.
+/catalog/plugins/               @LF-Certification/platform-engineering

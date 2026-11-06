@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Require the tag commit on main
+        run: |
+          git fetch --no-tags origin main || git rev-parse --verify origin/main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "tag commit is not on main"; exit 1; }
+
+      - name: Install devbox
+        uses: jetify-com/devbox-install-action@22b0f5500b14df4ea357ce673fbd4ced940ed6a1 # v0.13.0
+        with:
+          enable-cache: "true"
+          devbox-version: "0.18.4"
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532 # v4.1.3
+        with:
+          cosign-release: v3.1.4
+
+      - name: Cache Go modules and build cache
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: lfed-go-${{ hashFiles('go.sum', 'sdk/go.sum') }}
+          restore-keys: lfed-go-
+
+      - name: Test
+        run: devbox run -- make test
+
+      - name: Build and sign archives
+        run: devbox run -- goreleaser release --clean
+
+      - name: Verify the checksums signature
+        run: |
+          cosign verify-blob \
+            --bundle dist/checksums.txt.sigstore.json \
+            --certificate-identity "https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            dist/checksums.txt
+
+      - name: Extract release notes
+        run: |
+          awk -v v="${GITHUB_REF_NAME#v}" '
+            $0 ~ "^## \\[" v "\\]" { on=1; next }
+            on && /^## \[/ { exit }
+            on { print }
+          ' CHANGELOG.md > "${RUNNER_TEMP}/notes.md"
+          test -s "${RUNNER_TEMP}/notes.md" || { echo "no CHANGELOG section for ${GITHUB_REF_NAME}"; exit 1; }
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2.6.2
+        with:
+          name: lfed ${{ github.ref_name }}
+          body_path: ${{ runner.temp }}/notes.md
+          files: |
+            dist/*.tar.gz
+            dist/checksums.txt
+            dist/checksums.txt.sigstore.json
+          fail_on_unmatched_files: true
