@@ -36,21 +36,21 @@ var table = []Context{
 		Auth0Domain: "linuxfoundation-dev.auth0.com",
 		Issuer:      "https://linuxfoundation-dev.auth0.com/",
 		Audience:    "https://api.dev.ed.linuxfoundation.org/",
-		ClientID:    "0TN1OElqQY146vLEPdV5qfejRKpc9IAZ",
+		ClientID:    "z6q9Z85f5CG3t3djZaIRMHu7g1DAARts",
 	},
 	{
 		Name:        Staging,
 		Auth0Domain: "linuxfoundation-staging.auth0.com",
 		Issuer:      "https://linuxfoundation-staging.auth0.com/",
 		Audience:    "https://api.staging.ed.linuxfoundation.org/",
-		ClientID:    "9XzXgDfAB9O7IoHqhBj5mg4VLvdBM8ci",
+		ClientID:    "B1nLWCsJLD37vTlPOh6Gihe9bSm5EAo2",
 	},
 	{
 		Name:        Prod,
 		Auth0Domain: "sso.linuxfoundation.org",
 		Issuer:      "https://sso.linuxfoundation.org/",
 		Audience:    "https://api.ed.linuxfoundation.org/",
-		ClientID:    "kkCpM0c9zJ0vNZZDDOGqcyzocOBircOn",
+		ClientID:    "DNpDz5k86PuP0ynrDQ8BRFoNCQwrVCsO",
 	},
 }
 
