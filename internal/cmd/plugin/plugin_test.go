@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.ed.linuxfoundation.org/lfed/internal/cmdutil"
 	"go.ed.linuxfoundation.org/lfed/internal/config"
@@ -45,13 +47,18 @@ func newFactory(outputFlag string) (*cmdutil.Factory, *bytes.Buffer, *bytes.Buff
 
 func execute(t *testing.T, f *cmdutil.Factory, args ...string) error {
 	t.Helper()
+	return executeContext(context.Background(), t, f, args...)
+}
+
+func executeContext(ctx context.Context, t *testing.T, f *cmdutil.Factory, args ...string) error {
+	t.Helper()
 	cmd := NewCmd(f)
 	cmd.SilenceUsage = true
 	cmd.SilenceErrors = true
 	cmd.SetArgs(args)
 	cmd.SetOut(f.IOStreams.Out)
 	cmd.SetErr(f.IOStreams.ErrOut)
-	return cmd.ExecuteContext(context.Background())
+	return cmd.ExecuteContext(ctx)
 }
 
 func run(t *testing.T, outputFlag string, args ...string) string {
@@ -257,5 +264,131 @@ func TestCatalogAddListRemove(t *testing.T) {
 	cfg, err = config.Load()
 	if err != nil || cfg.Catalogs != nil {
 		t.Errorf("config after remove = %+v, %v", cfg, err)
+	}
+}
+
+func buildPlugin(t *testing.T, name string) string {
+	t.Helper()
+	bin := filepath.Join(t.TempDir(), "lfed-"+name)
+	build := exec.Command("go", "build", "-ldflags", "-X main.name="+name, "-o", bin, "./testdata/namedplugin")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build %s: %v\n%s", name, err, out)
+	}
+	return bin
+}
+
+func installed(t *testing.T, dir, name string) bool {
+	t.Helper()
+	_, err := os.Stat(filepath.Join(dir, name, pluginmgr.ManifestFile))
+	return err == nil
+}
+
+func TestInstallSeveral(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LFED_PLUGIN_DIR", dir)
+	alpha, beta := buildPlugin(t, "alpha"), buildPlugin(t, "beta")
+
+	f, _, _ := newFactory("table")
+	if err := execute(t, f, "install", alpha, beta); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"alpha", "beta"} {
+		if !installed(t, dir, name) {
+			t.Errorf("%s not installed", name)
+		}
+	}
+}
+
+func TestInstallContinuesPastFailure(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LFED_PLUGIN_DIR", dir)
+	alpha, beta := buildPlugin(t, "alpha"), buildPlugin(t, "beta")
+	bogus := filepath.Join(t.TempDir(), "lfed-missing")
+
+	f, _, _ := newFactory("table")
+	err := execute(t, f, "install", alpha, bogus, beta)
+	if err == nil || !strings.HasPrefix(err.Error(), bogus+": ") {
+		t.Fatalf("err = %v, want prefix %q", err, bogus+": ")
+	}
+	for _, name := range []string{"alpha", "beta"} {
+		if !installed(t, dir, name) {
+			t.Errorf("%s not installed", name)
+		}
+	}
+}
+
+func TestInstallOneFailureKeepsBareError(t *testing.T) {
+	t.Setenv("LFED_PLUGIN_DIR", t.TempDir())
+	bogus := filepath.Join(t.TempDir(), "lfed-missing")
+
+	f, _, _ := newFactory("table")
+	err := execute(t, f, "install", bogus)
+	_, want := pluginmgr.Install(context.Background(), f, bogus, pluginmgr.Options{})
+	if err == nil || want == nil || err.Error() != want.Error() {
+		t.Errorf("err = %v, want %v", err, want)
+	}
+}
+
+func TestInstallRequiresArgument(t *testing.T) {
+	t.Setenv("LFED_PLUGIN_DIR", t.TempDir())
+	f, _, _ := newFactory("table")
+	if err := execute(t, f, "install"); err == nil {
+		t.Error("install with no argument succeeded")
+	}
+}
+
+func TestInstallStopsWhenCanceled(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LFED_PLUGIN_DIR", dir)
+	alpha, beta := buildPlugin(t, "alpha"), buildPlugin(t, "beta")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	f, _, _ := newFactory("table")
+	err := executeContext(ctx, t, f, "install", alpha, beta)
+	if err != context.Canceled {
+		t.Errorf("err = %v, want only %v", err, context.Canceled)
+	}
+	if installed(t, dir, "alpha") || installed(t, dir, "beta") {
+		t.Error("a plugin was installed after cancellation")
+	}
+}
+
+func TestInstallKeepsEarlierFailuresWhenCanceled(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LFED_PLUGIN_DIR", dir)
+	src := t.TempDir()
+	bogus := filepath.Join(src, "lfed-missing")
+	started := filepath.Join(src, "started")
+	blocker := filepath.Join(src, "lfed-blocker")
+	t.Setenv("LFED_TEST_STARTED", started)
+	script := "#!/bin/sh\n: > \"$LFED_TEST_STARTED\"\nexec sleep 60\n"
+	if err := os.WriteFile(blocker, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	beta := buildPlugin(t, "beta")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() {
+		for ctx.Err() == nil {
+			if _, err := os.Stat(started); err == nil {
+				cancel()
+				return
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	f, _, _ := newFactory("table")
+	err := executeContext(ctx, t, f, "install", bogus, blocker, beta)
+	if err == nil || !strings.HasPrefix(err.Error(), bogus+": ") || strings.Contains(err.Error(), blocker) {
+		t.Errorf("err = %v, want only the failure of %s", err, bogus)
+	}
+	if errors.Is(err, context.Canceled) {
+		t.Errorf("err wraps context.Canceled, so main would print nothing: %v", err)
+	}
+	if installed(t, dir, "beta") {
+		t.Error("beta was installed after cancellation")
 	}
 }

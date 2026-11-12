@@ -1,6 +1,7 @@
 package plugin
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -33,10 +34,16 @@ func addSignerFlags(cmd *cobra.Command, opts *pluginmgr.Options) {
 func newInstallCmd(f *cmdutil.Factory) *cobra.Command {
 	var opts pluginmgr.Options
 	cmd := &cobra.Command{
-		Use:   "install [<catalog>/]<name>[@<version>|@sha256:<digest>] | <registry>/<repository>[:<version>|@sha256:<digest>] | <path>",
-		Short: "Install a plugin from a plugin catalog, an OCI reference, or a local file",
+		Use:   "install <plugin>...",
+		Short: "Install plugins from a plugin catalog, an OCI reference, or a local file",
 		Long: cmdutil.Long(`
-			Install a plugin from a plugin catalog, an OCI reference, or a local file.
+			Install one or more plugins. Each <plugin> is
+			[<catalog>/]<name>[@<version>|@sha256:<digest>],
+			<registry>/<repository>[:<version>|@sha256:<digest>], or <path>.
+
+			lfed installs each <plugin> in order. A failure does not stop the
+			others. lfed reports each failure and exits non-zero at the end.
+			The signer flags and --catalog apply to every <plugin>.
 
 			A bare <name> resolves through the default plugin catalog to an OCI
 			repository. <catalog>/<name> resolves through the catalog with that
@@ -75,19 +82,41 @@ func newInstallCmd(f *cmdutil.Factory) *cobra.Command {
 
 			# Install a local build
 			$ lfed plugin install ./lfed-hello
+
+			# Install several plugins from different plugin catalogs
+			$ lfed plugin install monkeysay acme/reports ./lfed-hello
 		`),
-		Args: cobra.ExactArgs(1),
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Reserved = reservedNames(cmd.Root())
-			p, err := pluginmgr.Install(cmd.Context(), f, args[0], opts)
-			if err != nil {
-				return err
+			ctx := cmd.Context()
+			var errs []error
+			for _, arg := range args {
+				if ctx.Err() != nil {
+					break
+				}
+				p, err := pluginmgr.Install(ctx, f, arg, opts)
+				if err != nil {
+					if len(args) == 1 {
+						return err
+					}
+					if ctx.Err() != nil {
+						break
+					}
+					errs = append(errs, fmt.Errorf("%s: %w", arg, err))
+					continue
+				}
+				if f.IOStreams.IsStdoutTTY() {
+					cs := f.IOStreams.ColorScheme()
+					fmt.Fprintf(f.IOStreams.Out, "%s Installed plugin %s %s from %s\n", cs.SuccessIcon(), p.Manifest.Name, p.Manifest.Version, p.Source)
+				}
 			}
-			if f.IOStreams.IsStdoutTTY() {
-				cs := f.IOStreams.ColorScheme()
-				fmt.Fprintf(f.IOStreams.Out, "%s Installed plugin %s %s from %s\n", cs.SuccessIcon(), p.Manifest.Name, p.Manifest.Version, p.Source)
+			// main prints nothing for an error that wraps context.Canceled,
+			// so the failures collected before the interrupt go back alone.
+			if len(errs) == 0 && ctx.Err() != nil {
+				return ctx.Err()
 			}
-			return nil
+			return errors.Join(errs...)
 		},
 	}
 	addSignerFlags(cmd, &opts)
