@@ -104,6 +104,10 @@ func helpTopics() []*cobra.Command {
 				installs a plugin that is not in a catalog. A local path installs
 				a plugin that you built.
 
+				"lfed plugin search <text>" finds plugins in every configured
+				catalog and prints the name that install takes.
+				"lfed plugin search <catalog>/" lists one catalog.
+
 				Plugin catalogs
 
 				A plugin catalog is a signed OCI artifact. The default catalog is

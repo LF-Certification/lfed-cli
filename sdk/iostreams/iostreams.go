@@ -14,6 +14,7 @@ type IOStreams struct {
 
 	stdinTTY     bool
 	stdoutTTY    bool
+	stderrTTY    bool
 	colorEnabled bool
 }
 
@@ -24,6 +25,7 @@ func System() *IOStreams {
 		ErrOut:    os.Stderr,
 		stdinTTY:  isTerminal(os.Stdin),
 		stdoutTTY: isTerminal(os.Stdout),
+		stderrTTY: isTerminal(os.Stderr),
 	}
 	s.colorEnabled = envColorEnabled(s.stdoutTTY)
 	return s
@@ -38,9 +40,11 @@ func Test() (*IOStreams, *bytes.Buffer, *bytes.Buffer, *bytes.Buffer) {
 
 func (s *IOStreams) IsStdinTTY() bool  { return s.stdinTTY }
 func (s *IOStreams) IsStdoutTTY() bool { return s.stdoutTTY }
+func (s *IOStreams) IsStderrTTY() bool { return s.stderrTTY }
 
 func (s *IOStreams) SetStdinTTY(v bool)  { s.stdinTTY = v }
 func (s *IOStreams) SetStdoutTTY(v bool) { s.stdoutTTY = v }
+func (s *IOStreams) SetStderrTTY(v bool) { s.stderrTTY = v }
 
 func (s *IOStreams) ColorEnabled() bool     { return s.colorEnabled }
 func (s *IOStreams) SetColorEnabled(v bool) { s.colorEnabled = v }
