@@ -2,6 +2,8 @@ module go.ed.linuxfoundation.org/lfed
 
 go 1.27.0
 
+toolchain go1.27.4
+
 require (
 	github.com/MakeNowJust/heredoc/v2 v2.0.1
 	github.com/Masterminds/semver/v3 v3.5.0

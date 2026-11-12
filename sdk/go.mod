@@ -2,6 +2,8 @@ module go.ed.linuxfoundation.org/lfed/sdk
 
 go 1.27.0
 
+toolchain go1.27.4
+
 require (
 	github.com/itchyny/gojq v0.12.20
 	github.com/spf13/cobra v1.10.2
