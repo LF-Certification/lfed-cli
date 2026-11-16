@@ -22,7 +22,8 @@ type Provenance struct {
 	Signature *Signature `json:"signature,omitempty"`
 
 	// CatalogEntry is the entry as it was at install time, nil unless a
-	// catalog resolved the plugin.
+	// catalog resolved the plugin. It is for display only: verification
+	// MUST read the signer from the live catalog, never from this copy.
 	CatalogEntry *CatalogEntry `json:"catalog_entry,omitempty"`
 }
 
