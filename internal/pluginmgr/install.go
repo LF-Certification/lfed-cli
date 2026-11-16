@@ -274,7 +274,8 @@ func fetchOCI(ctx context.Context, running string, repo *remote.Repository, src 
 		prov.Signature = &att.Signature
 	}
 	if entry != nil {
-		prov.CatalogEntry = &CatalogFacts{Owner: entry.Owner, Homepage: entry.Homepage}
+		snap := *entry
+		prov.CatalogEntry = &snap
 	}
 	return fetched{Source: src, Manifest: m, Provenance: prov}, nil
 }

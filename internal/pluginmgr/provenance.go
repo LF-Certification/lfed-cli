@@ -23,7 +23,7 @@ type Provenance struct {
 
 	// CatalogEntry is the entry as it was at install time, nil unless a
 	// catalog resolved the plugin.
-	CatalogEntry *CatalogFacts `json:"catalog_entry,omitempty"`
+	CatalogEntry *CatalogEntry `json:"catalog_entry,omitempty"`
 }
 
 // Basis says who vouches for SourceCode.Repository and Revision.
@@ -62,16 +62,13 @@ func (s SourceCode) URL() string {
 	return s.Repository
 }
 
+// Signature is the certificate that actually signed. Signer is what a
+// catalog expects: its Identity is a template with {version}.
 type Signature struct {
 	Issuer string `json:"issuer"`
 	// Identity is the certificate SAN, not the regexp it matched.
 	Identity string `json:"identity"`
 	BuildRun string `json:"build_run,omitempty"`
-}
-
-type CatalogFacts struct {
-	Owner    string `json:"owner,omitempty"`
-	Homepage string `json:"homepage,omitempty"`
 }
 
 // attestation is what verifySignature read from the certificate that passed.

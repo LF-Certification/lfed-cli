@@ -77,7 +77,8 @@ func TestInfoCatalogPlugin(t *testing.T) {
 	prov, _ := row["provenance"].(map[string]any)
 	if row["name"] != "monkeysay" || row["compatible"] != true || src["ref"] != "ghcr.io/acme/monkeysay" ||
 		row["source_url"] != "https://github.com/acme/monkeysay/tree/ea90769d" || row["verification"] != "signed" ||
-		row["binary"] != bin || prov["installed_at"] != "2026-11-16T01:02:03Z" {
+		row["binary"] != bin || prov["installed_at"] != "2026-11-16T01:02:03Z" ||
+		row["catalog"] != "default" || row["owner"] != "acme/tools" || row["homepage"] != "https://example.com/monkeysay" {
 		t.Errorf("json = %v", row)
 	}
 
@@ -120,6 +121,11 @@ func TestInfoPathPlugin(t *testing.T) {
 	}
 	if _, ok := row["source_url"]; ok || row["verification"] != "local" || row["provenance"] == nil {
 		t.Errorf("json = %v", row)
+	}
+	for _, key := range []string{"catalog", "owner", "homepage"} {
+		if _, ok := row[key]; ok {
+			t.Errorf("json has %s for a path plugin: %v", key, row)
+		}
 	}
 }
 

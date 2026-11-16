@@ -1,6 +1,7 @@
 package pluginmgr
 
 import (
+	"encoding/json"
 	"reflect"
 	"testing"
 
@@ -125,5 +126,18 @@ func TestSourceCode(t *testing.T) {
 				t.Errorf("URL = %q, want %q", got.URL(), tt.wantURL)
 			}
 		})
+	}
+}
+
+// A record written before catalog_entry held the whole entry still loads.
+func TestProvenanceLoadsOwnerOnlyCatalogEntry(t *testing.T) {
+	var p Provenance
+	if err := json.Unmarshal([]byte(`{"installed_at": "2026-11-16T01:02:03Z",
+	  "catalog_entry": {"owner": "acme/tools", "homepage": "https://example.com/x"}}`), &p); err != nil {
+		t.Fatal(err)
+	}
+	want := &CatalogEntry{Owner: "acme/tools", Homepage: "https://example.com/x"}
+	if !reflect.DeepEqual(p.CatalogEntry, want) {
+		t.Errorf("CatalogEntry = %+v, want %+v", p.CatalogEntry, want)
 	}
 }

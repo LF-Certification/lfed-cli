@@ -607,6 +607,7 @@ func TestInstallRecordsProvenance(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	entry := testEntry(host, "hello")
 	want := &Provenance{
 		InstalledAt: time.Date(2026, 3, 4, 4, 6, 7, 0, time.UTC),
 		Code: &SourceCode{
@@ -614,7 +615,7 @@ func TestInstallRecordsProvenance(t *testing.T) {
 			Revision: "0123456789abcdef",
 			Basis:    BasisUnsignedAnnotation,
 		},
-		CatalogEntry: &CatalogFacts{Owner: "acme/tools"},
+		CatalogEntry: &entry,
 	}
 	if !reflect.DeepEqual(got.Provenance, want) {
 		t.Errorf("Provenance = %+v, want %+v", got.Provenance, want)

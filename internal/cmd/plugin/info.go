@@ -14,6 +14,11 @@ import (
 // names and meanings that "lfed plugin list -o json" gives them.
 type infoRow struct {
 	listRow
+	// CatalogAlias, Owner and Homepage use search's keys, so one --jq
+	// filter reads both.
+	CatalogAlias string                `json:"catalog,omitempty"`
+	Owner        string                `json:"owner,omitempty"`
+	Homepage     string                `json:"homepage,omitempty"`
 	Binary       string                `json:"binary"`
 	SourceURL    string                `json:"source_url,omitempty"`
 	Verification string                `json:"verification"`
@@ -39,6 +44,13 @@ func newInfoRow(p pluginmgr.Installed, running string) infoRow {
 		r.Verification = "signed"
 	default:
 		r.Verification = "unsigned"
+	}
+	if p.Source.Type == pluginmgr.SourceCatalog {
+		r.CatalogAlias = pluginmgr.CatalogLabel(p.Source.Catalog)
+	}
+	if p.Provenance != nil && p.Provenance.CatalogEntry != nil {
+		r.Owner = p.Provenance.CatalogEntry.Owner
+		r.Homepage = p.Provenance.CatalogEntry.Homepage
 	}
 	if c := r.code(); c != nil {
 		r.SourceURL = c.URL()
@@ -100,13 +112,6 @@ func (r infoRow) basis() string {
 	return "publisher annotation, NOT verified"
 }
 
-func (r infoRow) catalogFacts() pluginmgr.CatalogFacts {
-	if r.Provenance == nil || r.Provenance.CatalogEntry == nil {
-		return pluginmgr.CatalogFacts{}
-	}
-	return *r.Provenance.CatalogEntry
-}
-
 func (r infoRow) signature() pluginmgr.Signature {
 	if r.Provenance == nil || r.Provenance.Signature == nil {
 		return pluginmgr.Signature{}
@@ -122,8 +127,8 @@ var infoColumns = []output.Column[infoRow]{
 	{Header: "source", Value: func(r infoRow) string { return r.Source.String() }},
 	{Header: "summary", Value: func(r infoRow) string { return r.Summary }},
 	{Header: "requires lfed", Value: func(r infoRow) string { return r.RequiresLfed }},
-	{Header: "owner", Value: func(r infoRow) string { return r.catalogFacts().Owner }},
-	{Header: "homepage", Value: func(r infoRow) string { return r.catalogFacts().Homepage }},
+	{Header: "owner", Value: func(r infoRow) string { return r.Owner }},
+	{Header: "homepage", Value: func(r infoRow) string { return r.Homepage }},
 	{Header: "installed", Value: func(r infoRow) string {
 		if r.Provenance == nil {
 			return ""
