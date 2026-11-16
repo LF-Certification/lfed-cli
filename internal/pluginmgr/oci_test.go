@@ -9,12 +9,15 @@ import (
 	"errors"
 	"io"
 	"log"
+	"maps"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-containerregistry/pkg/registry"
 	"github.com/opencontainers/go-digest"
@@ -114,6 +117,8 @@ type release struct {
 
 	platforms []platform
 	archive   []byte
+
+	annotations map[string]string
 }
 
 func helloRelease(name, version, requires string, archive []byte) release {
@@ -175,6 +180,7 @@ func publishRelease(t *testing.T, host string, r release) {
 	if r.requires != "" {
 		idx.Annotations[AnnotationRequiresLfed] = r.requires
 	}
+	maps.Copy(idx.Annotations, r.annotations)
 	for _, p := range r.platforms {
 		desc, err := oras.PackManifest(ctx, repo, oras.PackManifestVersion1_1, r.artifactType, oras.PackManifestOptions{
 			ConfigDescriptor:    &config,
@@ -577,5 +583,61 @@ func rewriteSource(t *testing.T, dir, name string, src Source) {
 	}
 	if err := os.WriteFile(filepath.Join(dir, name, ManifestFile), data, 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestInstallRecordsProvenance(t *testing.T) {
+	setPluginDir(t)
+	host := testRegistry(t)
+	r := helloRelease("hello", "0.0.1", ">=0.1.0 <1", tarGz(t, helloBin, "lfed-hello"))
+	r.annotations = map[string]string{
+		ocispec.AnnotationSource:   "https://github.com/acme/plugins/tree/0123456789abcdef/hello",
+		ocispec.AnnotationRevision: "0123456789abcdef",
+	}
+	publishRelease(t, host, r)
+	stamp := time.Date(2026, 3, 4, 5, 6, 7, 890, time.FixedZone("x", 3600))
+	defer func(prev func() time.Time) { now = prev }(now)
+	now = func() time.Time { return stamp }
+
+	f, _ := testFactory(t)
+	if _, err := Install(context.Background(), f, "hello", Options{AllowUnsigned: true}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	got, err := Lookup("hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	entry := testEntry(host, "hello")
+	want := &Provenance{
+		InstalledAt: time.Date(2026, 3, 4, 4, 6, 7, 0, time.UTC),
+		Code: &SourceCode{
+			Link:     "https://github.com/acme/plugins/tree/0123456789abcdef/hello",
+			Revision: "0123456789abcdef",
+			Basis:    BasisUnsignedAnnotation,
+		},
+		CatalogEntry: &CatalogSnapshot{Owner: entry.Owner, Homepage: entry.Homepage},
+	}
+	if !reflect.DeepEqual(got.Provenance, want) {
+		t.Errorf("Provenance = %+v, want %+v", got.Provenance, want)
+	}
+}
+
+func TestInstallIgnoresMalformedSourceAnnotation(t *testing.T) {
+	setPluginDir(t)
+	host := testRegistry(t)
+	r := helloRelease("hello", "0.0.1", ">=0.1.0 <1", tarGz(t, helloBin, "lfed-hello"))
+	r.annotations = map[string]string{ocispec.AnnotationSource: "javascript:alert(1)"}
+	publishRelease(t, host, r)
+
+	f, _ := testFactory(t)
+	if _, err := Install(context.Background(), f, "hello", Options{AllowUnsigned: true}); err != nil {
+		t.Fatalf("Install: %v", err)
+	}
+	got, err := Lookup("hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Provenance == nil || got.Provenance.Code != nil {
+		t.Errorf("Provenance = %+v, want one with no source code", got.Provenance)
 	}
 }

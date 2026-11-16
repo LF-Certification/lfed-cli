@@ -126,3 +126,25 @@ func TestPrintJQInvalidExpressionErrors(t *testing.T) {
 		t.Fatal("expected parse error")
 	}
 }
+
+func TestPrintDetail(t *testing.T) {
+	detail := []Column[row]{
+		{Header: "name", Value: func(r row) string { return r.Name }},
+		{Header: "empty", Value: func(row) string { return "" }},
+		{Header: "long header", Value: func(row) string { return "x" }},
+	}
+	var buf bytes.Buffer
+	if err := PrintDetail(Printer{Out: &buf, Mode: Table}, row{"a", 1}, detail); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := buf.String(), "NAME         a\nLONG HEADER  x\n"; got != want {
+		t.Fatalf("table = %q, want %q", got, want)
+	}
+	buf.Reset()
+	if err := PrintDetail(Printer{Out: &buf, Mode: JSON}, row{"a", 1}, detail); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(buf.String()); got != "{\n  \"name\": \"a\",\n  \"count\": 1\n}" {
+		t.Fatalf("json = %q", got)
+	}
+}

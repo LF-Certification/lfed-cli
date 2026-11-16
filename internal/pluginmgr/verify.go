@@ -61,46 +61,59 @@ func signerFor(src Source, version string, opts Options, entry *CatalogEntry) (s
 		src.Ref)
 }
 
-func verifySignature(ctx context.Context, repo *remote.Repository, ref string, desc ocispec.Descriptor, s signer) error {
+// verifySignature returns the facts of the certificate whose signature passed.
+func verifySignature(ctx context.Context, repo *remote.Repository, ref string, desc ocispec.Descriptor, s signer) (*attestation, error) {
 	if desc.Digest.Algorithm() != digest.SHA256 {
-		return fmt.Errorf("%s: index digest %s is not sha256", ref, desc.Digest)
+		return nil, fmt.Errorf("%s: index digest %s is not sha256", ref, desc.Digest)
 	}
 	want, err := hex.DecodeString(desc.Digest.Encoded())
 	if err != nil {
-		return fmt.Errorf("%s: %w", ref, err)
+		return nil, fmt.Errorf("%s: %w", ref, err)
 	}
 	bundles, err := referrerBundles(ctx, repo, desc)
 	if err != nil {
-		return fmt.Errorf("%s: read signatures: %w", ref, err)
+		return nil, fmt.Errorf("%s: read signatures: %w", ref, err)
 	}
 	if len(bundles) == 0 {
-		return fmt.Errorf("%s has no Sigstore signature; pass --allow-unsigned only for a registry you control", ref)
+		return nil, fmt.Errorf("%s has no Sigstore signature; pass --allow-unsigned only for a registry you control", ref)
 	}
 	trusted, err := trustedRoot(ctx)
 	if err != nil {
-		return fmt.Errorf("fetch Sigstore trusted root: %w", err)
+		return nil, fmt.Errorf("fetch Sigstore trusted root: %w", err)
 	}
 	v, err := verify.NewVerifier(trusted,
 		verify.WithSignedCertificateTimestamps(1),
 		verify.WithTransparencyLog(1),
 		verify.WithObserverTimestamps(1))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	id, err := verify.NewShortCertificateIdentity(s.Issuer, "", "", s.SANRegex)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	policy := verify.NewPolicy(verify.WithArtifactDigest("sha256", want), verify.WithCertificateIdentity(id))
 	var errs []error
 	for _, b := range bundles {
-		_, err := v.Verify(b, policy)
+		res, err := v.Verify(b, policy)
 		if err == nil {
-			return nil
+			return certificateFacts(res), nil
 		}
 		errs = append(errs, err)
 	}
-	return fmt.Errorf("%s: no signature from %s (issuer %s) is valid: %w", ref, s.SANRegex, s.Issuer, errors.Join(errs...))
+	return nil, fmt.Errorf("%s: no signature from %s (issuer %s) is valid: %w", ref, s.SANRegex, s.Issuer, errors.Join(errs...))
+}
+
+func certificateFacts(res *verify.VerificationResult) *attestation {
+	if res == nil || res.Signature == nil || res.Signature.Certificate == nil {
+		return &attestation{}
+	}
+	c := res.Signature.Certificate
+	return &attestation{
+		Signature:  Signature{Issuer: c.Issuer, Identity: c.SubjectAlternativeName, BuildRun: c.RunInvocationURI},
+		Repository: c.SourceRepositoryURI,
+		Revision:   c.SourceRepositoryDigest,
+	}
 }
 
 func referrerBundles(ctx context.Context, repo *remote.Repository, desc ocispec.Descriptor) ([]*bundle.Bundle, error) {
