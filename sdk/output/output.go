@@ -62,6 +62,22 @@ func PrintOne[T any](p Printer, v T, columns []Column[T]) error {
 	return printTable(p.Out, []T{v}, columns)
 }
 
+// PrintDetail prints one value. A table is one "HEADER  value" line per
+// column, and a column whose value is "" is left out. Structured modes
+// print v itself.
+func PrintDetail[T any](p Printer, v T, columns []Column[T]) error {
+	if p.Mode.Structured() {
+		return p.PrintValue(v)
+	}
+	tw := tabwriter.NewWriter(p.Out, 0, 0, 2, ' ', 0)
+	for _, c := range columns {
+		if value := c.Value(v); value != "" {
+			fmt.Fprintf(tw, "%s\t%s\n", strings.ToUpper(c.Header), value)
+		}
+	}
+	return tw.Flush()
+}
+
 func (p Printer) PrintValue(v any) error {
 	if p.JQ != "" {
 		doc, err := json.Marshal(v)
