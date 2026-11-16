@@ -14,8 +14,9 @@ import (
 // names and meanings that "lfed plugin list -o json" gives them.
 type infoRow struct {
 	listRow
-	// CatalogAlias, Owner and Homepage use search's keys, so one --jq
-	// filter reads both.
+	// CatalogAlias, Owner and Homepage are search's keys. Owner and Homepage
+	// are the catalog entry at install time, absent when none was recorded,
+	// and can differ from what search shows now.
 	CatalogAlias string                `json:"catalog,omitempty"`
 	Owner        string                `json:"owner,omitempty"`
 	Homepage     string                `json:"homepage,omitempty"`
@@ -49,8 +50,7 @@ func newInfoRow(p pluginmgr.Installed, running string) infoRow {
 		r.CatalogAlias = pluginmgr.CatalogLabel(p.Source.Catalog)
 	}
 	if p.Provenance != nil && p.Provenance.CatalogEntry != nil {
-		r.Owner = p.Provenance.CatalogEntry.Owner
-		r.Homepage = p.Provenance.CatalogEntry.Homepage
+		r.Owner, r.Homepage = p.Provenance.CatalogEntry.Owner, p.Provenance.CatalogEntry.Homepage
 	}
 	if c := r.code(); c != nil {
 		r.SourceURL = c.URL()
@@ -77,25 +77,16 @@ func (r infoRow) codeText() string {
 	return "unknown: the publisher did not state it"
 }
 
-// installArg is the "lfed plugin install" argument that installs src again.
+// installArg is the "lfed plugin install" argument that installs src
+// again, unpinned.
 func installArg(src pluginmgr.Source) string {
-	arg := src.Ref
-	if src.Type == pluginmgr.SourceCatalog {
-		arg = src.Name()
-		if src.Catalog != "" {
-			arg = src.Catalog + "/" + arg
-		}
-	}
 	switch {
-	case !src.Pinned:
-	case src.Version != "" && src.Type == pluginmgr.SourceOCI:
-		arg += ":" + src.Version
-	case src.Version != "":
-		arg += "@" + src.Version
-	case src.Digest != "":
-		arg += "@" + src.Digest
+	case src.Type != pluginmgr.SourceCatalog:
+		return src.Ref
+	case src.Catalog != "":
+		return src.Catalog + "/" + src.Name()
 	}
-	return arg
+	return src.Name()
 }
 
 func (r infoRow) basis() string {
@@ -165,6 +156,11 @@ func newInfoCmd(f *cmdutil.Factory) *cobra.Command {
 			whether a signature covered it. lfed reads only the install
 			record. A plugin installed by an older lfed has no record of
 			these facts until it is installed again.
+
+			These facts are what lfed verified when it installed the
+			plugin. info does not contact the registry or verify again.
+			The record sits in the plugin directory beside the binary, so
+			it is as trustworthy as that directory.
 		`),
 		Example: cmdutil.Examples(`
 			$ lfed plugin info monkeysay

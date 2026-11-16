@@ -615,7 +615,7 @@ func TestInstallRecordsProvenance(t *testing.T) {
 			Revision: "0123456789abcdef",
 			Basis:    BasisUnsignedAnnotation,
 		},
-		CatalogEntry: &entry,
+		CatalogEntry: &CatalogSnapshot{Owner: entry.Owner, Homepage: entry.Homepage},
 	}
 	if !reflect.DeepEqual(got.Provenance, want) {
 		t.Errorf("Provenance = %+v, want %+v", got.Provenance, want)

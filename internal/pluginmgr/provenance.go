@@ -21,10 +21,15 @@ type Provenance struct {
 	// Signature is nil for a path install and for --allow-unsigned.
 	Signature *Signature `json:"signature,omitempty"`
 
-	// CatalogEntry is the entry as it was at install time, nil unless a
-	// catalog resolved the plugin. It is for display only: verification
-	// MUST read the signer from the live catalog, never from this copy.
-	CatalogEntry *CatalogEntry `json:"catalog_entry,omitempty"`
+	// CatalogEntry is nil unless a catalog resolved the plugin.
+	CatalogEntry *CatalogSnapshot `json:"catalog_entry,omitempty"`
+}
+
+// CatalogSnapshot is the part of the catalog entry that info shows, as it
+// was at install time.
+type CatalogSnapshot struct {
+	Owner    string `json:"owner"`
+	Homepage string `json:"homepage,omitempty"`
 }
 
 // Basis says who vouches for SourceCode.Repository and Revision.

@@ -136,7 +136,7 @@ func TestInfoOldRecord(t *testing.T) {
 	  "source": {"type": "catalog", "ref": "ghcr.io/acme/reports", "catalog": "acme", "version": "1.2.0", "digest": "sha256:abc", "pinned": true}}`)
 
 	got := run(t, "table", "info", "reports")
-	if want := `CODE           not recorded: run "lfed plugin install acme/reports@1.2.0" again` + "\n"; !strings.Contains(got, want) {
+	if want := `CODE           not recorded: run "lfed plugin install acme/reports" again` + "\n"; !strings.Contains(got, want) {
 		t.Errorf("table lacks %q:\n%s", want, got)
 	}
 	if strings.Contains(got, "INSTALLED") {
@@ -149,6 +149,10 @@ func TestInfoOldRecord(t *testing.T) {
 	}
 	if prov, ok := row["provenance"]; !ok || prov != nil || row["verification"] != "not-recorded" {
 		t.Errorf("json = %v, want provenance null", row)
+	}
+	_, hasOwner := row["owner"]
+	if _, ok := row["homepage"]; ok || hasOwner || row["catalog"] != "acme" {
+		t.Errorf("json = %v, want catalog acme, no owner, no homepage", row)
 	}
 }
 
@@ -167,10 +171,9 @@ func TestInstallArg(t *testing.T) {
 		src  pluginmgr.Source
 		want string
 	}{
-		{pluginmgr.Source{Type: pluginmgr.SourceCatalog, Ref: "ghcr.io/x/hello", Version: "1.0.0"}, "hello"},
-		{pluginmgr.Source{Type: pluginmgr.SourceCatalog, Ref: "ghcr.io/x/hello", Catalog: "acme", Digest: "sha256:abc", Pinned: true}, "acme/hello@sha256:abc"},
-		{pluginmgr.Source{Type: pluginmgr.SourceOCI, Ref: "ghcr.io/x/hello", Version: "1.0.0", Pinned: true}, "ghcr.io/x/hello:1.0.0"},
-		{pluginmgr.Source{Type: pluginmgr.SourceOCI, Ref: "ghcr.io/x/hello", Version: "1.0.0"}, "ghcr.io/x/hello"},
+		{pluginmgr.Source{Type: pluginmgr.SourceCatalog, Ref: "ghcr.io/x/hello", Version: "1.0.0", Pinned: true}, "hello"},
+		{pluginmgr.Source{Type: pluginmgr.SourceCatalog, Ref: "ghcr.io/x/hello", Catalog: "acme", Digest: "sha256:abc", Pinned: true}, "acme/hello"},
+		{pluginmgr.Source{Type: pluginmgr.SourceOCI, Ref: "ghcr.io/x/hello", Version: "1.0.0", Pinned: true}, "ghcr.io/x/hello"},
 	}
 	for _, tt := range tests {
 		if got := installArg(tt.src); got != tt.want {
