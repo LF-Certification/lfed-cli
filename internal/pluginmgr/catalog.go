@@ -344,7 +344,7 @@ func fetchCatalog(ctx context.Context, ref string, s Signer, allowUnsigned bool)
 	pinned := repoRef(repo, desc.Digest.String())
 	if !allowUnsigned {
 		sig := signer{Issuer: s.Issuer, SANRegex: "^" + regexp.QuoteMeta(s.Identity) + "$"}
-		if err := verifySignature(ctx, repo, pinned, desc, sig); err != nil {
+		if _, err := verifySignature(ctx, repo, pinned, desc, sig); err != nil {
 			return nil, fmt.Errorf("plugin catalog: %w", err)
 		}
 	}

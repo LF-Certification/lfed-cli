@@ -84,6 +84,9 @@ func TestLookup(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if p.Provenance != nil {
+		t.Errorf("Provenance = %+v for a record without one, want nil", p.Provenance)
+	}
 	if want := filepath.Join(dir, "alpha", "lfed-alpha"); p.Binary != want {
 		t.Errorf("Binary = %q, want %q", p.Binary, want)
 	}
@@ -254,6 +257,13 @@ func TestInstallFromFile(t *testing.T) {
 	}
 	if m.SchemaVersion != "1" || m.Name != "hello" || m.Version != "0.0.1" || m.Summary == "" {
 		t.Errorf("manifest = %+v", m)
+	}
+	got, err := Lookup("hello")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if pr := got.Provenance; pr == nil || pr.InstalledAt.IsZero() || pr.Code != nil || pr.Signature != nil || pr.CatalogEntry != nil {
+		t.Errorf("Provenance = %+v, want only an install time", pr)
 	}
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {

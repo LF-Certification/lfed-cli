@@ -41,7 +41,15 @@ type Options struct {
 	Catalog string
 }
 
-type fetchFunc func(ctx context.Context, bin string) (Source, sdkplugin.Manifest, error)
+// fetched is what a fetchFunc learned. Provenance lacks InstalledAt,
+// which install stamps.
+type fetched struct {
+	Source     Source
+	Manifest   sdkplugin.Manifest
+	Provenance Provenance
+}
+
+type fetchFunc func(ctx context.Context, bin string) (fetched, error)
 
 func Install(ctx context.Context, f *cmdutil.Factory, arg string, opts Options) (Installed, error) {
 	src, err := ParseSource(arg)
@@ -50,12 +58,12 @@ func Install(ctx context.Context, f *cmdutil.Factory, arg string, opts Options) 
 	}
 	switch src.Type {
 	case SourcePath:
-		return install(ctx, f, opts, func(ctx context.Context, bin string) (Source, sdkplugin.Manifest, error) {
+		return install(ctx, f, opts, func(ctx context.Context, bin string) (fetched, error) {
 			if err := fetchPath(src.Path, bin); err != nil {
-				return src, sdkplugin.Manifest{}, err
+				return fetched{}, err
 			}
 			m, err := metadata(ctx, bin)
-			return src, m, err
+			return fetched{Source: src, Manifest: m}, err
 		})
 	case SourceOCI, SourceCatalog:
 		if slices.Contains(opts.Reserved, src.Name()) {
@@ -116,7 +124,7 @@ func resolveCatalog(ctx context.Context, f *cmdutil.Factory, src Source, opts Op
 }
 
 func installOCI(ctx context.Context, f *cmdutil.Factory, repo *remote.Repository, src Source, res resolved, opts Options, entry *CatalogEntry) (Installed, error) {
-	return install(ctx, f, opts, func(ctx context.Context, bin string) (Source, sdkplugin.Manifest, error) {
+	return install(ctx, f, opts, func(ctx context.Context, bin string) (fetched, error) {
 		return fetchOCI(ctx, f.Version, repo, src, res, opts, entry, bin)
 	})
 }
@@ -138,7 +146,8 @@ func install(ctx context.Context, f *cmdutil.Factory, opts Options, fetch fetchF
 	defer os.RemoveAll(stage)
 
 	bin := filepath.Join(stage, "plugin")
-	src, m, err := fetch(ctx, bin)
+	got, err := fetch(ctx, bin)
+	src, m := got.Source, got.Manifest
 	if err != nil {
 		return Installed{}, err
 	}
@@ -158,7 +167,9 @@ func install(ctx context.Context, f *cmdutil.Factory, opts Options, fetch fetchF
 	enc := json.NewEncoder(&manifest)
 	enc.SetEscapeHTML(false)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(record{Manifest: m, Source: src}); err != nil {
+	prov := got.Provenance
+	prov.InstalledAt = now().UTC().Truncate(time.Second)
+	if err := enc.Encode(record{Manifest: m, Source: src, Provenance: &prov}); err != nil {
 		return Installed{}, err
 	}
 	if err := os.Rename(bin, filepath.Join(stage, BinaryName(m.Name))); err != nil {
@@ -176,10 +187,13 @@ func install(ctx context.Context, f *cmdutil.Factory, opts Options, fetch fetchF
 	if src.Type != SourcePath && opts.AllowUnsigned {
 		fmt.Fprintf(f.IOStreams.ErrOut, "warning: %s installed without signature verification\n", src)
 	}
-	return Installed{Manifest: m, Source: src, Dir: final, Binary: filepath.Join(final, BinaryName(m.Name))}, nil
+	return Installed{Manifest: m, Source: src, Provenance: &prov, Dir: final, Binary: filepath.Join(final, BinaryName(m.Name))}, nil
 }
 
-var renameDir = os.Rename
+var (
+	renameDir = os.Rename
+	now       = time.Now
+)
 
 func replaceDir(stage, final string) error {
 	prev := ""
@@ -219,7 +233,7 @@ func fetchPath(path, bin string) error {
 	return copyFile(path, bin)
 }
 
-func fetchOCI(ctx context.Context, running string, repo *remote.Repository, src Source, res resolved, opts Options, entry *CatalogEntry, bin string) (Source, sdkplugin.Manifest, error) {
+func fetchOCI(ctx context.Context, running string, repo *remote.Repository, src Source, res resolved, opts Options, entry *CatalogEntry, bin string) (fetched, error) {
 	label := src.Name() + "@" + res.Version
 	if src.digestPin() {
 		label = src.Name() + "@" + src.Digest
@@ -230,7 +244,7 @@ func fetchOCI(ctx context.Context, running string, repo *remote.Repository, src 
 			if errors.As(err, &incompatible) {
 				incompatible.Name = label
 			}
-			return src, sdkplugin.Manifest{}, err
+			return fetched{}, err
 		}
 	}
 	if !src.digestPin() {
@@ -238,20 +252,31 @@ func fetchOCI(ctx context.Context, running string, repo *remote.Repository, src 
 	}
 	src.Digest = res.Desc.Digest.String()
 	ref := repoRef(repo, src.Digest)
+	var att *attestation
 	if !opts.AllowUnsigned {
 		s, err := signerFor(src, res.Version, opts, entry)
 		if err != nil {
-			return src, sdkplugin.Manifest{}, err
+			return fetched{}, err
 		}
-		if err := verifySignature(ctx, repo, ref, res.Desc, s); err != nil {
-			return src, sdkplugin.Manifest{}, err
+		if att, err = verifySignature(ctx, repo, ref, res.Desc, s); err != nil {
+			return fetched{}, err
 		}
 	}
 	m, err := pullOCI(ctx, repo, res.Index, src.Name(), ref, bin)
 	if err != nil {
-		return src, m, err
+		return fetched{}, err
 	}
-	return src, m, checkAnnotations(ref, res.Index.Annotations, m)
+	if err := checkAnnotations(ref, res.Index.Annotations, m); err != nil {
+		return fetched{}, err
+	}
+	prov := Provenance{Code: sourceCode(att, res.Index.Annotations)}
+	if att != nil {
+		prov.Signature = &att.Signature
+	}
+	if entry != nil {
+		prov.CatalogEntry = &CatalogFacts{Owner: entry.Owner, Homepage: entry.Homepage}
+	}
+	return fetched{Source: src, Manifest: m, Provenance: prov}, nil
 }
 
 func Remove(name string) error {

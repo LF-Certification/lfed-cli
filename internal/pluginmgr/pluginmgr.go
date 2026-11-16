@@ -21,6 +21,9 @@ type Installed struct {
 
 	Source Source
 
+	// Provenance is nil for a plugin installed before lfed recorded it.
+	Provenance *Provenance
+
 	Dir string
 
 	Binary string
@@ -28,7 +31,8 @@ type Installed struct {
 
 type record struct {
 	sdkplugin.Manifest
-	Source Source `json:"source"`
+	Source     Source      `json:"source"`
+	Provenance *Provenance `json:"provenance,omitempty"`
 }
 
 type NotFoundError struct {
@@ -131,7 +135,7 @@ func load(dir, name string) (Installed, error) {
 		return Installed{}, fmt.Errorf("plugin %q has manifest schema_version %q; this lfed reads %q; run \"lfed plugin install\" again",
 			name, r.SchemaVersion, sdkplugin.ManifestSchemaVersion)
 	}
-	return Installed{Manifest: r.Manifest, Source: r.Source, Dir: pdir, Binary: filepath.Join(pdir, BinaryName(name))}, nil
+	return Installed{Manifest: r.Manifest, Source: r.Source, Provenance: r.Provenance, Dir: pdir, Binary: filepath.Join(pdir, BinaryName(name))}, nil
 }
 
 func CheckLfedVersion(requires, running string) error {
