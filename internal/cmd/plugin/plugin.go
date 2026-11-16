@@ -19,7 +19,7 @@ func NewCmd(f *cmdutil.Factory) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE:  func(cmd *cobra.Command, _ []string) error { return cmd.Help() },
 	}
-	cmd.AddCommand(newInstallCmd(f), newListCmd(f), newUpgradeCmd(f), newRemoveCmd(f), newSearchCmd(f), newCatalogCmd(f))
+	cmd.AddCommand(newInstallCmd(f), newListCmd(f), newUpgradeCmd(f), newRemoveCmd(f), newSearchCmd(f), newInfoCmd(f), newCatalogCmd(f))
 	return cmd
 }
 

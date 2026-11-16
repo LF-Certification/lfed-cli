@@ -142,9 +142,12 @@ func helpTopics() []*cobra.Command {
 				Files
 
 				Each plugin has the directory <plugin dir>/<name>. It holds the
-				binary lfed-<name> and the record lfed-plugin.json with the manifest
-				and the source. "lfed plugin upgrade" resolves the source again.
-				"lfed plugin remove" deletes the directory.
+				binary lfed-<name> and the record lfed-plugin.json with the manifest,
+				the source, and what lfed learned at install: the signer, the
+				catalog owner, and the repository and commit of the source code.
+				"lfed plugin info <name>" shows the record. "lfed plugin upgrade"
+				resolves the source again. "lfed plugin remove" deletes the
+				directory.
 			`),
 		},
 	}

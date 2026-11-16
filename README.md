@@ -22,6 +22,7 @@ lfed context use dev
 lfed auth login
 lfed plugin search monkey
 lfed plugin install monkeysay
+lfed plugin info monkeysay
 lfed monkeysay hello
 lfed help plugins
 ```
