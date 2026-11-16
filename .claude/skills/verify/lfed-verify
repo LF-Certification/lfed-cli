@@ -1,0 +1,128 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+evidence_root="$repo/.verify-evidence"
+
+usage() {
+	cat <<'EOF'
+usage:
+  lfed-verify launch [<run-id>]          build bin/lfed and the hello plugin, create scratch dirs
+  lfed-verify doctor <run-id>            read-only health check of a run
+  lfed-verify run <run-id> <label> -- <lfed args...>
+                                         run bin/lfed isolated, record cmd/stdout/stderr/exit
+  lfed-verify tty <run-id> <label> -- <lfed args...>
+                                         same, under a PTY via script(1), to see TTY-only lines
+  lfed-verify snapshot <run-id> <label>  record the plugin dir tree and every lfed-plugin.json
+  lfed-verify cleanup <run-id>           remove scratch dirs; keep evidence
+EOF
+	exit 2
+}
+
+scratch_of() {
+	[[ "$1" =~ ^[A-Za-z0-9._-]+$ && "$1" != *..* ]] || { echo "run id $1 must be letters, digits, '.', '_' or '-'" >&2; exit 2; }
+	echo "${TMPDIR:-/tmp}/lfed-verify-$1"
+}
+
+isolate() {
+	local s
+	s="$(scratch_of "$1")"
+	[[ -d "$s" ]] || { echo "no scratch dir $s; run launch first" >&2; exit 1; }
+	export LFED_PLUGIN_DIR="$s/plugins" LFED_CONFIG_DIR="$s/config" LFED_STATE_DIR="$s/state"
+	export XDG_CACHE_HOME="$s/cache" XDG_DATA_HOME="$s/data" XDG_CONFIG_HOME="$s/xdg-config" XDG_STATE_HOME="$s/xdg-state"
+	unset LFED_CATALOG LFED_CONTEXT
+	cd "$s"
+}
+
+record() {
+	local mode="$1" id="$2" label="$3"
+	shift 3
+	[[ "${1:-}" == "--" ]] || usage
+	shift
+	local out="$evidence_root/$id/$label"
+	mkdir -p "$out"
+	isolate "$id"
+	printf '%q ' lfed "$@" >"$out/cmd"
+	echo >>"$out/cmd"
+	local rc=0
+	if [[ "$mode" == tty ]]; then
+		local q
+		q="$(printf '%q ' "$repo/bin/lfed" "$@")"
+		script -qefc "$q" /dev/null >"$out/stdout" 2>"$out/stderr" </dev/null || rc=$?
+	else
+		"$repo/bin/lfed" "$@" >"$out/stdout" 2>"$out/stderr" </dev/null || rc=$?
+	fi
+	echo "$rc" >"$out/exit"
+	echo "== $label: lfed $* (exit $rc)"
+	cat "$out/stdout"
+	cat "$out/stderr" >&2
+}
+
+cmd="${1:-}"
+[[ -n "$cmd" ]] || usage
+shift
+
+case "$cmd" in
+launch)
+	id="${1:-$(date +%Y%m%d-%H%M%S)-$$}"
+	s="$(scratch_of "$id")"
+	[[ ! -e "$s" ]] || { echo "scratch dir $s already exists; pick another run id" >&2; exit 1; }
+	make -C "$repo" build >/dev/null
+	mkdir -p "$s"/{plugins,config,state,cache,data,xdg-config,xdg-state,src} "$evidence_root/$id"
+	(cd "$repo" && go build -o "$s/src/lfed-hello" ./internal/pluginmgr/testdata/helloplugin)
+	"$repo/bin/lfed" version >"$evidence_root/$id/version"
+	git -C "$repo" rev-parse HEAD >"$evidence_root/$id/revision"
+	echo "run id:   $id"
+	echo "scratch:  $s"
+	echo "evidence: $evidence_root/$id"
+	echo "hello:    $s/src/lfed-hello"
+	echo "ready"
+	;;
+doctor)
+	[[ $# -eq 1 ]] || usage
+	id="$1"
+	s="$(scratch_of "$id")"
+	ok=1
+	check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; ok=0; fi; }
+	check "bin/lfed exists and runs" "[[ -x '$repo/bin/lfed' ]] && '$repo/bin/lfed' version >/dev/null"
+	check "bin/lfed is not older than HEAD's sources" "[[ -z \$(find '$repo/cmd' '$repo/internal' '$repo/sdk' -name '*.go' -newer '$repo/bin/lfed' -print -quit) ]]"
+	check "scratch dir $s exists" "[[ -d '$s/plugins' ]]"
+	check "hello plugin built" "[[ -x '$s/src/lfed-hello' ]]"
+	check "evidence dir exists" "[[ -d '$evidence_root/$id' ]]"
+	(
+		isolate "$id"
+		p="$("$repo/bin/lfed" plugin list -o json 2>/dev/null | python3 -c 'import json,sys; print(len(json.load(sys.stdin)))' || echo error)"
+		echo "info isolated plugin list has $p plugin(s) in $LFED_PLUGIN_DIR"
+	)
+	[[ $ok == 1 ]] && echo "doctor: ok" || { echo "doctor: FAIL"; exit 1; }
+	;;
+run | tty)
+	[[ $# -ge 3 ]] || usage
+	record "$cmd" "$@"
+	;;
+snapshot)
+	[[ $# -eq 2 ]] || usage
+	id="$1" label="$2"
+	out="$evidence_root/$id/$label"
+	mkdir -p "$out"
+	isolate "$id"
+	{
+		find "$LFED_PLUGIN_DIR" -mindepth 1 | sort | sed "s|^$LFED_PLUGIN_DIR/||"
+		for m in "$LFED_PLUGIN_DIR"/*/lfed-plugin.json; do
+			[[ -e "$m" ]] || continue
+			echo "--- ${m#"$LFED_PLUGIN_DIR"/}"
+			cat "$m"
+			echo
+		done
+	} >"$out/plugin-dir.txt"
+	echo "== $label: plugin dir snapshot"
+	cat "$out/plugin-dir.txt"
+	;;
+cleanup)
+	[[ $# -eq 1 ]] || usage
+	s="$(scratch_of "$1")"
+	rm -rf "$s"
+	echo "removed $s; evidence kept at $evidence_root/$1"
+	;;
+*) usage ;;
+esac
