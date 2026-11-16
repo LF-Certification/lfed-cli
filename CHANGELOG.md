@@ -1,5 +1,30 @@
 # Changelog
 
+## [0.2.0] - 2026-11-16
+
+### Features
+
+- *(plugin)* Add plugin search command
+- *(plugin)* Install several plugins in one command
+- *(plugin)* Decide where a plugin's source code came from
+- *(plugin)* Record provenance when a plugin installs
+- *(plugin)* Add plugin info command
+- *(plugin)* Match info JSON keys to search
+
+### Bug fixes
+
+- *(plugin)* Make info output say only what it knows
+
+### Documentation
+
+- *(plugin)* Mark the recorded catalog entry as display only
+
+### Miscellaneous
+
+- *(contexts)* Rotate auth0 client ids for all environments (#2)
+- *(go)* Pin toolchain to go1.27.4
+- *(verify)* Add verification skill with plugin info recipe
+
 ## [0.1.1] - 2026-11-06
 
 ### Miscellaneous
