@@ -44,7 +44,7 @@ jobs:
           persist-credentials: false
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@8c6a66ed6273138b1915457069de78cb52fe3bd7 # v0.15.0
+        uses: jetify-com/devbox-install-action@05e954310554b6122a26b4880d69937f61b1eb2e # v0.16.0
         with:
           enable-cache: "true"
           devbox-version: "0.18.4"
@@ -63,7 +63,7 @@ jobs:
         run: devbox run -- make catalog
 
       - name: Log in to ghcr.io
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

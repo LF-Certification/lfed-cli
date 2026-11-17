@@ -26,7 +26,7 @@ jobs:
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main || { echo "tag commit is not on main"; exit 1; }
 
       - name: Install devbox
-        uses: jetify-com/devbox-install-action@8c6a66ed6273138b1915457069de78cb52fe3bd7 # v0.15.0
+        uses: jetify-com/devbox-install-action@05e954310554b6122a26b4880d69937f61b1eb2e # v0.16.0
         with:
           enable-cache: "true"
           devbox-version: "0.18.4"
@@ -69,7 +69,7 @@ jobs:
           test -s "${RUNNER_TEMP}/notes.md" || { echo "no CHANGELOG section for ${GITHUB_REF_NAME}"; exit 1; }
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           name: lfed ${{ github.ref_name }}
           body_path: ${{ runner.temp }}/notes.md
